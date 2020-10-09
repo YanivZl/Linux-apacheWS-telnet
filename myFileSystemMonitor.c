@@ -12,6 +12,9 @@
 #include <sys/types.h> 
 #include <netinet/in.h> 
 #include <arpa/inet.h>
+#include <libcli.h>
+#include <getopt.h>
+#include <execinfo.h>
 
        /* Read all available inotify events from the file descriptor 'fd'.
           wd is the table of watch descriptors for the directories in argv.
@@ -71,7 +74,7 @@ char* handle_events(int fd, int wd, int argc, char argv[])
 			{
 				//printf("Event watched.");
 				printf("IN_CLOSE_NONWRITE: ");
-				sprintf(str , "ACCESSED FILE: %s/%s ACCESS: %s TIME ACCESS: %d-%02d-%02d %02d:%02d:%02d%c", argv ,event ->name , "READ" , tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec , '\0');	
+				sprintf(str , "ACCESSED FILE: %s/%s ACCESS: %s TIME ACCESS: %d-%02d-%02d %02d:%02d:%02d%c", argv ,event ->name , "NO_WRITE" , tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec , '\0');	
 			}
 			else if (event->mask & IN_CLOSE_WRITE)
 			{
@@ -108,8 +111,48 @@ char* handle_events(int fd, int wd, int argc, char argv[])
 
 #define PORT 8080
 
+int callback(const char* username, const char* pass)
+{
+	if(username == "user" && pass == "123")
+		return CLI_OK;
+	return CLI_ERROR;
+}
+
+int count = 0;
+void __attribute__((no_instrument_function)) __cyg_profile_func_enter(void *this_fn, void *call_site)
+{
+	printf("Enter %d\n", ++count);
+}
+
+void __attribute__((no_instrument_function)) __cyg_profile_func_exit(void *this_fn, void *call_site)
+{
+	printf("Exit cnt=%d\n", --count);
+}
+
 int main(int argc, char *argv[])
 {
+	// getopt 
+	int option;
+	char *dic_input, *ip_input;
+	while((option = getopt(argc, argv, "d:i:")) != -1){
+    	switch (option) {
+			case 'd':
+				dic_input = optarg;
+				break;
+			case 'i':
+				ip_input = optarg;
+				break;
+			default:
+				return EXIT_FAILURE;
+		}
+	}
+
+	// libcli
+	struct cli_def* cli = cli_init();
+	cli_allow_user(cli, "user", "123");
+	cli_set_auth_callback(cli, callback);
+	//struct cli_command *c = cli_register_command(cli, NULL, "backtrace", backtrace, PRIVILEGE_UNPRIVILEGED, MODE_EXEC, NULL);
+
 	char buf;
 	int fd, i, poll_num;
 	int wd;
@@ -133,8 +176,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(PORT);
-	if(!inet_aton(argv[1] , server_addr.sin_addr.s_addr))
+	if(!inet_aton(ip_input , &server_addr.sin_addr))
 	{
 		perror("inet_aton");
 		exit(EXIT_FAILURE);
@@ -164,10 +206,10 @@ int main(int argc, char *argv[])
 	/* Mark directories for events
 	   - file was opened
 	   - file was closed */
-	wd = inotify_add_watch(fd , argv[2] , IN_OPEN | IN_CLOSE_WRITE | IN_CLOSE_NOWRITE);
+	wd = inotify_add_watch(fd , dic_input , IN_OPEN | IN_CLOSE_WRITE | IN_CLOSE_NOWRITE);
 	if(wd == -1)
 	{
-		fprintf(stderr, "Cannot watch '%s'\n", argv[2]);
+		fprintf(stderr, "Cannot watch '%s'\n", dic_input);
 		perror("inotify_add_watch");
 		exit(EXIT_FAILURE);
 	}
@@ -226,7 +268,7 @@ int main(int argc, char *argv[])
 			{
 
 				/* Inotify events are available */
-				char* str = handle_events(fd, wd, 1, argv[2]);
+				char* str = handle_events(fd, wd, 1, dic_input);
 				// char buf2[36];
 				// char* temp = malloc(7);
 				// if(ed ->writeOrRead)
@@ -249,7 +291,7 @@ int main(int argc, char *argv[])
 				if(str[0] == '/')
 					write(fd2 , "<br>" , 4);
 				char* temp = strchr(str , '\0');
-				if((sendto(sockfd , str ,temp - str + 1 , 0 ,&server_addr , sizeof(server_addr))) == -1)
+				if((sendto(sockfd , str ,temp - str + 1 , MSG_CONFIRM ,(const struct sockaddr *) &server_addr , sizeof(server_addr))) == -1)
 				{
 					perror("sendto");
 				}
