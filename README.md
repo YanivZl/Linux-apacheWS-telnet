@@ -1,12 +1,21 @@
 Unix / Linux Project
+
 Guide for users:
+
 1.	Work space
+
 1.1	   Module – libcli
+
 1.2	   Module – apache
+
 1.3	   Module – telnetd
+
 1.4	   Module – inetd
+
 1.5	   User – fred
+
 1.6	   Password – nerk
+
 
 2.	Compilation
 2.1     gcc myFileSystemMonitor.c -lcli -o monitor
