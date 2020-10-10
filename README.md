@@ -11,7 +11,7 @@ Guide for users:
   1.6	   Password – 123
 
 2.	Compilation
-2.1     gcc myFileSystemMonitor.c -lcli -o monitor
+2.1     gcc myFileSystemMonitor.c -lpthread -lcli -finstrument-functions -rdynamic -o monitor
 
 3.	Command  - execution 
 3.1	    ./monitor -d home/user/Desktop/test/ -I 127.0.0.1 
